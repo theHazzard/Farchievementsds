@@ -4,25 +4,29 @@
 	"description": "Achievements for FoundryVTT",
 	"version": "13.03",
 	"author": "Handyfon",
-	"esmodules": ["AchievementsScreen.js"],
-	"styles": ["AchievementsScreen.css"],
+	"esmodules": [
+		"AchievementsScreen.js"
+	],
+	"styles": [
+		"AchievementsScreen.css"
+	],
 	"packs": [],
 	"socket": true,
 	"languages": [
-	  {
-		"lang": "de",
-		"name": "German",
-		"path": "lang/de.json"
-	  },
-	  {
-		"lang": "en",
-		"name": "English",
-		"path": "lang/en.json"
-	  }
+		{
+			"lang": "de",
+			"name": "German",
+			"path": "lang/de.json"
+		},
+		{
+			"lang": "en",
+			"name": "English",
+			"path": "lang/en.json"
+		}
 	],
-    "url": "https://github.com/Handyfon/Farchievements/tree/master",
-    "manifest": "https://raw.githubusercontent.com/Handyfon/Farchievements/master/module.json",
-    "download": "https://raw.githubusercontent.com/Handyfon/Farchievements/master/farchievements.zip",
+	"url": "https://github.com/theHazzard/Farchievementsds/tree/main",
+	"manifest": "https://raw.githubusercontent.com/theHazzard/Farchievementsds/main/module.json",
+	"download": "https://raw.githubusercontent.com/theHazzard/Farchievementsds/main/farchievements.zip",
 	"compatibility": {
 		"minimum": "11",
 		"verified": "13"
