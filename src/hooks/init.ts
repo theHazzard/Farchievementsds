@@ -353,10 +353,10 @@ Hooks.once('init', function () {
 
 
     // Discord intermediary (cannot use discord directly :( )
-    console.log("My Achievement Notifier | Initializing");
+    console.log("El Hazzy Discord Achievement Award | Initializing");
 
     // Register settings
-    game.settings.register("my-achievement-notifier", "discordBackendEnabled", {
+    game.settings.register("elhazzy-ds-achievement-award", "discordBackendEnabled", {
         name: "Enable Discord Notifications",
         hint: "Send a notification to a Discord channel via a backend service when an achievement is granted.",
         scope: "world", // Or "client" if you prefer per-user config, "world" is usually best for URLs/secrets
@@ -365,7 +365,7 @@ Hooks.once('init', function () {
         default: false,
     });
 
-    game.settings.register("my-achievement-notifier", "discordBackendUrl", {
+    game.settings.register("elhazzy-ds-achievement-award", "discordBackendUrl", {
         name: "Backend Notification URL",
         hint: "The full URL of your backend service endpoint (e.g., https://your-backend.com/notify-achievement).",
         scope: "world",
@@ -375,7 +375,7 @@ Hooks.once('init', function () {
     });
 
     // IMPORTANT: This secret authenticates Foundry to YOUR backend. It is NOT your Discord Bot Token.
-    game.settings.register("my-achievement-notifier", "discordBackendSecret", {
+    game.settings.register("elhazzy-ds-achievement-award", "discordBackendSecret", {
         name: "Backend Shared Secret",
         hint: "A secret password shared between Foundry and your backend to verify requests.",
         scope: "world",

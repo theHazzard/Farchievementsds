@@ -43,18 +43,77 @@ function SendSyncMessage() {
                 document.getElementById('achsyncnormalmode').innerHTML = "";
     });
 }
+function sendAchievementNotification(user, achievementData) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const enabled = game.settings.get("elhazzy-ds-achievement-award", "discordBackendEnabled");
+        const backendUrl = game.settings.get("elhazzy-ds-achievement-award", "discordBackendUrl");
+        const secret = game.settings.get("elhazzy-ds-achievement-award", "discordBackendSecret");
+        // Only proceed if enabled and configured
+        if (!enabled || !backendUrl || !secret) {
+            if (enabled) {
+                console.warn("El Hazzy Discord Achievement Award  | Discord notifications enabled but URL or Secret is missing.");
+            }
+            return;
+        }
+        // --- Extract relevant data ---
+        // Adjust these based on the actual structure of achievementData
+        const userName = user;
+        const achievementName = achievementData.name || "Unknown Achievement";
+        const achievementDescription = achievementData.description || "";
+        const achievementIcon = achievementData.image || ""; // URL to the icon maybe?
+        // Add any other data you want to send
+        // ---
+        const payload = {
+            userName: userName,
+            achievementName: achievementName,
+            achievementDescription: achievementDescription,
+            achievementIcon: achievementIcon,
+            timestamp: new Date().toISOString(),
+            // Add world/game name if useful context? game.world.title
+        };
+        console.log(`El Hazzy Discord Achievement Award  | Sending notification for ${userName} - ${achievementName}`);
+        try {
+            const response = yield fetch(backendUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    // Send the shared secret for backend authentication
+                    'Authorization': `Bearer ${secret}`
+                },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) {
+                // Log error if backend responded unfavorably
+                const errorBody = yield response.text();
+                console.error(`El Hazzy Discord Achievement Award  | Error sending notification: ${response.status} ${response.statusText}`, errorBody);
+                ui.notifications.error(`Failed to send Discord achievement notification (${response.status}). Check console (F12).`);
+            }
+            else {
+                console.log("El Hazzy Discord Achievement Award  | Notification sent successfully.");
+                // Optional: ui.notifications.info("Discord achievement notification sent.");
+            }
+        }
+        catch (error) {
+            // Log error if fetch itself failed (network issue, etc.)
+            console.error("El Hazzy Discord Achievement Award  | Failed to send notification request:", error);
+            ui.notifications.error("Failed to send Discord achievement notification request. Check console (F12).");
+        }
+    });
+}
 
 function addAchievementFromCommand(achievementID, PID) {
     return __awaiter(this, void 0, void 0, function* () {
         const cleanPlayerID = game.users.contents.indexOf(game.users.get(PID)) - 1;
         let dataPlayerID = cleanPlayerID; //++xathick
         const player = game.users.get(PID);
-        player.name;
+        const playerName = player.name;
         const clientdataSYNC = game.settings.get('farchievements', 'clientdataSYNC'); //GET DATA
         const dataArray = clientdataSYNC.split("||"); //DATA TO ARRAY
         let dataArrayPlayer; //DATA TO ARRAY
         let toSYNC;
         let index = 0;
+        const achievement = yield getAchievementByID(achievementID);
+        yield sendAchievementNotification(playerName, achievement);
         for (index; index < dataArray.length; index++) {
             if (dataArray[index].split(":")[0] == PID) {
                 dataPlayerID = index;
@@ -118,6 +177,27 @@ function addAchievementFromCommand(achievementID, PID) {
         }
         else
             window.loadAchievementsEditMode();
+    });
+}
+function loadAchievementList() {
+    return __awaiter(this, void 0, void 0, function* () {
+        let achievementData;
+        try {
+            achievementData = JSON.parse(yield game.settings.get('farchievements', 'achievementdataNEW'));
+            if (!Array.isArray(achievementData))
+                throw new Error("Achievement data is not an array");
+        }
+        catch (e) {
+            console.error("Farchievements | Failed to load achievements data:", e);
+            return [];
+        }
+        return achievementData;
+    });
+}
+function getAchievementByID(achievementID) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const achievements = yield loadAchievementList();
+        return achievements.find((achievement) => achievement.id === achievementID);
     });
 }
 
@@ -758,9 +838,9 @@ Hooks.once('init', function () {
         type: String,
     });
     // Discord intermediary (cannot use discord directly :( )
-    console.log("My Achievement Notifier | Initializing");
+    console.log("El Hazzy Discord Achievement Award | Initializing");
     // Register settings
-    game.settings.register("my-achievement-notifier", "discordBackendEnabled", {
+    game.settings.register("elhazzy-ds-achievement-award", "discordBackendEnabled", {
         name: "Enable Discord Notifications",
         hint: "Send a notification to a Discord channel via a backend service when an achievement is granted.",
         scope: "world", // Or "client" if you prefer per-user config, "world" is usually best for URLs/secrets
@@ -768,7 +848,7 @@ Hooks.once('init', function () {
         type: Boolean,
         default: false,
     });
-    game.settings.register("my-achievement-notifier", "discordBackendUrl", {
+    game.settings.register("elhazzy-ds-achievement-award", "discordBackendUrl", {
         name: "Backend Notification URL",
         hint: "The full URL of your backend service endpoint (e.g., https://your-backend.com/notify-achievement).",
         scope: "world",
@@ -777,7 +857,7 @@ Hooks.once('init', function () {
         default: "",
     });
     // IMPORTANT: This secret authenticates Foundry to YOUR backend. It is NOT your Discord Bot Token.
-    game.settings.register("my-achievement-notifier", "discordBackendSecret", {
+    game.settings.register("elhazzy-ds-achievement-award", "discordBackendSecret", {
         name: "Backend Shared Secret",
         hint: "A secret password shared between Foundry and your backend to verify requests.",
         scope: "world",
