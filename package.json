@@ -1,0 +1,24 @@
+{
+  "name": "farchievementsds",
+  "version": "1.0.0",
+  "description": "![Latest Release Download Count](https://img.shields.io/github/downloads/Handyfon/Farchievements/farchievementsV1.1.zip?color=2b82fc&label=DOWNLOADS&style=for-the-badge)",
+  "main": "AchievementsScreen.js",
+  "scripts": {
+    "build": "rollup -c"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@eslint/js": "^9.23.0",
+    "@rollup/plugin-typescript": "^12.1.2",
+    "@types/jquery": "^3.5.32",
+    "eslint": "^9.23.0",
+    "globals": "^16.0.0",
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.29.0"
+  },
+  "dependencies": {
+    "tslib": "^2.8.1"
+  }
+}
