@@ -194,6 +194,12 @@ function loadAchievementList() {
         return achievementData;
     });
 }
+function getAchievementByName(achievementName) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const achievements = yield loadAchievementList();
+        return achievements.find((achievement) => achievement.name === achievementName);
+    });
+}
 function getAchievementByID(achievementID) {
     return __awaiter(this, void 0, void 0, function* () {
         const achievements = yield loadAchievementList();
@@ -1400,3 +1406,5 @@ window.farchievements_DEBUG_Reset_PlayerAchievements = function resetPlayers() {
     });
 };
 window.Farchievements = Farchievements;
+window.sendAchievementNotification = sendAchievementNotification;
+window.getAchievementByName = getAchievementByName;

@@ -1,10 +1,13 @@
 import { Farchievements } from "./classes/farchivements";
+import { sendAchievementNotification } from "./helpers/message";
+import { getAchievementByName } from "./helpers/achievements";
 import './hooks/init';
 import './hooks/renderSceneNavigation';
 import './hooks/createChatMessage';
 import './hooks/renderSettings';
 import './hooks/renderChatMessage';
 import './hooks/ready';
+
 
 window.farchievements_DEBUG_Reset_EVERYTHING = async function resetSettings() {
     if (!game.user.isGM) return;
@@ -22,3 +25,5 @@ window.farchievements_DEBUG_Reset_PlayerAchievements = async function resetPlaye
 }
 
 window.Farchievements = Farchievements;
+window.sendAchievementNotification = sendAchievementNotification;
+window.getAchievementByName = getAchievementByName;

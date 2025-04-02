@@ -16,6 +16,8 @@ declare global {
         loadAchievements: () => void;
         loadAchievementsEditMode: () => void;
         loadAchievementsList: () => void;
+        sendAchievementNotification: sendAchievementNotification;
+        getAchievementByName: getAchievementByName;
         farchievements_DEBUG_Reset_EVERYTHING: () => void;
         farchievements_DEBUG_Reset_PlayerAchievements: () => void;
         Farchievements: Farchievements;
