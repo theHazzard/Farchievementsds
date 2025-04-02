@@ -2,11 +2,9 @@ import { Farchievements } from "./classes/farchivements";
 import './hooks/init';
 import './hooks/renderSceneNavigation';
 import './hooks/createChatMessage';
-import './hooks/ready';
 import './hooks/renderSettings';
 import './hooks/renderChatMessage';
 import './hooks/ready';
-
 
 window.farchievements_DEBUG_Reset_EVERYTHING = async function resetSettings() {
     if (!game.user.isGM) return;
