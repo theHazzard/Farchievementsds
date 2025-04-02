@@ -1072,9 +1072,6 @@
 				AchievementData[achievementIndex].name,
 				AchievementData[achievementIndex].description,
 				AchievementData[achievementIndex].image,
-				AchievementData[achievementIndex].points,
-				AchievementData[achievementIndex].glowing,
-				AchievementData[achievementIndex].color,
 				AchievementData[achievementIndex].players,
 				AchievementData[achievementIndex].seenBy,
 				AchievementData[achievementIndex].playerDates,
@@ -1082,7 +1079,10 @@
 				AchievementData[achievementIndex].progressType,
 				AchievementData[achievementIndex].playerProgress,
 				AchievementData[achievementIndex].chainLength,
-				AchievementData[achievementIndex].diceType
+				AchievementData[achievementIndex].diceType,
+				AchievementData[achievementIndex].points,
+				AchievementData[achievementIndex].glowing,
+				AchievementData[achievementIndex].color,
 			);
 			window.sendAchievementNotification(player.name, achievement);
 
