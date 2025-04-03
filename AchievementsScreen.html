@@ -1084,7 +1084,6 @@
 				AchievementData[achievementIndex].glowing,
 				AchievementData[achievementIndex].color,
 			);
-			window.sendAchievementNotification(player.name, achievement);
 
 			// Add or remove the player from this specific achievement
 			if (achievement && Array.isArray(achievement.players)) {
@@ -1092,9 +1091,11 @@
 					achievement.removePlayer(playerID);
 				} else {
 					achievement.addPlayer(playerID);
+					window.sendAchievementNotification(player.name, achievement);
 				}
 			} else {
 				achievement.addPlayer(playerID);
+				window.sendAchievementNotification(player.name, achievement);
 				console.warn(`Achievement or players property is not properly defined for achievement: ${achievement ? achievement.name : 'undefined'}`);
 			}
 

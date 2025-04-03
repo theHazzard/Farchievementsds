@@ -2,7 +2,7 @@
 	"id": "farchievements",
 	"title": "Foundry Achievements",
 	"description": "Achievements for FoundryVTT",
-	"version": "13.06",
+	"version": "13.07",
 	"author": "Handyfon",
 	"esmodules": [
 		"AchievementsScreen.js"
