@@ -5,7 +5,7 @@ import { AchievementSync } from "../classes/achievementSync";
 interface FoundryAchievement {
     name: string;
     description: string;
-    image: unknown;
+    image: string;
     players: string[];
     seenBy: unknown[];
     playerDates: Record<string, unknown>;

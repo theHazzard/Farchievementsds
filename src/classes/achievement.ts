@@ -3,7 +3,7 @@ import { SendSyncMessage } from "../helpers/message";
 export class Achievement {
     name: string;
     description: string;
-    image: unknown;
+    image: string;
     points: number;
     glowing: boolean;
     color: string;
@@ -19,7 +19,7 @@ export class Achievement {
     constructor(
         name: string,
         description: string,
-        image: unknown,
+        image: string,
         players: string[],
         seenBy: unknown[] = [],
         playerDates = {},
