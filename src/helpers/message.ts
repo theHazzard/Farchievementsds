@@ -13,11 +13,12 @@ export async function SendSyncMessage() {
 			document.getElementById('achsyncnormalmode')!.innerHTML = "";
 }
 
-export async function sendAchievementNotification(user: string, achievementData: Achievement) {
+export async function sendAchievementNotification(userID: string, achievementData: Achievement) {
 	const enabled = game.settings.get("elhazzy-ds-achievement-award", "discordBackendEnabled");
 	const backendUrl = game.settings.get("elhazzy-ds-achievement-award", "discordBackendUrl");
 	const secret = game.settings.get("elhazzy-ds-achievement-award", "discordBackendSecret");
-
+	const user = game.users.get(userID);
+	const discordUserId = user.getFlag('farchievements', 'discordId') as string | undefined;
 	// Only proceed if enabled and configured
 	if (!enabled || !backendUrl || !secret) {
 		if (enabled) {
@@ -28,7 +29,7 @@ export async function sendAchievementNotification(user: string, achievementData:
 
 	// --- Extract relevant data ---
 	// Adjust these based on the actual structure of achievementData
-	const userName = user;
+	const userName = user.name;
 	const achievementName = achievementData.name || "Unknown Achievement";
 	const achievementDescription = achievementData.description || "";
 	const achievementIconSource = achievementData.image || ""; // URL to the icon maybe?
@@ -42,6 +43,7 @@ export async function sendAchievementNotification(user: string, achievementData:
 		// We will send the icon source URL/path for reference if needed,
 		// but the actual file data will be separate.
 		iconSource: achievementIconSource,
+		discordUserId: discordUserId,
 		timestamp: new Date().toISOString(),
 	};
 

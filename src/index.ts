@@ -6,6 +6,7 @@ import './hooks/renderSceneNavigation';
 import './hooks/createChatMessage';
 import './hooks/renderSettings';
 import './hooks/renderChatMessage';
+import './hooks/renderUserConfig';
 import './hooks/ready';
 
 

@@ -1091,11 +1091,11 @@
 					achievement.removePlayer(playerID);
 				} else {
 					achievement.addPlayer(playerID);
-					window.sendAchievementNotification(player.name, achievement);
+					window.sendAchievementNotification(playerID, achievement);
 				}
 			} else {
 				achievement.addPlayer(playerID);
-				window.sendAchievementNotification(player.name, achievement);
+				window.sendAchievementNotification(playerID, achievement);
 				console.warn(`Achievement or players property is not properly defined for achievement: ${achievement ? achievement.name : 'undefined'}`);
 			}
 

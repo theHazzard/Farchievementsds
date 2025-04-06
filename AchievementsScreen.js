@@ -1,259 +1,218 @@
-/******************************************************************************
-Copyright (c) Microsoft Corporation.
-
-Permission to use, copy, modify, and/or distribute this software for any
-purpose with or without fee is hereby granted.
-
-THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
-REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
-INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
-OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-PERFORMANCE OF THIS SOFTWARE.
-***************************************************************************** */
-/* global Reflect, Promise, SuppressedError, Symbol, Iterator */
-
-
-function __awaiter(thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
+async function SendSyncMessage() {
+    ChatMessage.create({
+        user: game.user._id,
+        content: "Achievements Synced",
+        blind: false,
+        whisper: game.users.filter((u) => u.isGM).map((u) => u.id)
     });
+    if (document.getElementById('achsyncnormalmode') != null)
+        if (document.getElementById('achsyncnormalmode').innerHTML != "")
+            document.getElementById('achsyncnormalmode').innerHTML = "";
 }
-
-typeof SuppressedError === "function" ? SuppressedError : function (error, suppressed, message) {
-    var e = new Error(message);
-    return e.name = "SuppressedError", e.error = error, e.suppressed = suppressed, e;
-};
-
-function SendSyncMessage() {
-    return __awaiter(this, void 0, void 0, function* () {
-        ChatMessage.create({
-            user: game.user._id,
-            content: "Achievements Synced",
-            blind: false,
-            whisper: game.users.filter((u) => u.isGM).map((u) => u.id)
-        });
-        if (document.getElementById('achsyncnormalmode') != null)
-            if (document.getElementById('achsyncnormalmode').innerHTML != "")
-                document.getElementById('achsyncnormalmode').innerHTML = "";
-    });
-}
-function sendAchievementNotification(user, achievementData) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const enabled = game.settings.get("elhazzy-ds-achievement-award", "discordBackendEnabled");
-        const backendUrl = game.settings.get("elhazzy-ds-achievement-award", "discordBackendUrl");
-        const secret = game.settings.get("elhazzy-ds-achievement-award", "discordBackendSecret");
-        // Only proceed if enabled and configured
-        if (!enabled || !backendUrl || !secret) {
-            if (enabled) {
-                console.warn("El Hazzy Discord Achievement Award | Discord notifications enabled but URL or Secret is missing.");
-            }
-            return;
+async function sendAchievementNotification(userID, achievementData) {
+    const enabled = game.settings.get("elhazzy-ds-achievement-award", "discordBackendEnabled");
+    const backendUrl = game.settings.get("elhazzy-ds-achievement-award", "discordBackendUrl");
+    const secret = game.settings.get("elhazzy-ds-achievement-award", "discordBackendSecret");
+    const user = game.users.get(userID);
+    const discordUserId = user.getFlag('farchievements', 'discordId');
+    // Only proceed if enabled and configured
+    if (!enabled || !backendUrl || !secret) {
+        if (enabled) {
+            console.warn("El Hazzy Discord Achievement Award | Discord notifications enabled but URL or Secret is missing.");
         }
-        // --- Extract relevant data ---
-        // Adjust these based on the actual structure of achievementData
-        const userName = user;
-        const achievementName = achievementData.name || "Unknown Achievement";
-        const achievementDescription = achievementData.description || "";
-        const achievementIconSource = achievementData.image || ""; // URL to the icon maybe?
-        // Add any other data you want to send
-        // ---
-        const jsonDataPayload = {
-            userName: userName,
-            achievementName: achievementName,
-            achievementDescription: achievementDescription,
-            // We will send the icon source URL/path for reference if needed,
-            // but the actual file data will be separate.
-            iconSource: achievementIconSource,
-            timestamp: new Date().toISOString(),
-        };
-        console.log(`El Hazzy Discord Achievement Award | Preparing notification for ${userName} - ${achievementName}`);
-        // --- Prepare FormData ---
-        const formData = new FormData();
-        formData.append('jsonData', JSON.stringify(jsonDataPayload)); // Send metadata as JSON string
-        // --- Handle Image ---
-        let imageBlob = null;
-        let filename = 'achievement-icon'; // Default filename
-        if (achievementIconSource) {
-            try {
-                // Attempt to fetch the icon source (works for URLs, might work for relative paths in some setups)
-                const imageResponse = yield fetch(achievementIconSource);
-                if (imageResponse.ok) {
-                    imageBlob = yield imageResponse.blob();
-                    // Try to get a filename from the URL
-                    try {
-                        const urlParts = new URL(achievementIconSource);
-                        const pathParts = urlParts.pathname.split('/');
-                        filename = pathParts[pathParts.length - 1] || filename;
-                    }
-                    catch (e) {
-                        console.error('');
-                    }
-                }
-                else {
-                    console.warn(`El Hazzy Discord Achievement Award | Could not fetch image source: ${achievementIconSource} - Status: ${imageResponse.status}`);
-                }
-            }
-            catch (error) {
-                console.error(`El Hazzy Discord Achievement Award | Error fetching image source ${achievementIconSource}:`, error);
-                // Handle cases where fetch fails (e.g., local paths not fetchable directly by browser fetch)
-                // If achievementIconSource is a guaranteed local path accessible via server-side Node API
-                // in Foundry (less common for client-side hooks), you'd need a different approach here,
-                // possibly involving game.socket or server-side fetch if running in Node context.
-                // For now, we assume fetch might work or we skip the image.
-            }
-        }
-        // Append image blob if successfully fetched
-        if (imageBlob) {
-            // Ensure filename has an extension based on mime type if possible
-            const extension = imageBlob.type.split('/')[1] || 'png'; // Default to png if type unknown
-            if (!filename.includes('.')) {
-                filename = `${filename}.${extension}`;
-            }
-            formData.append('achievementImageFile', imageBlob, filename); // The field name 'achievementImageFile' must match backend
-            console.log(`El Hazzy Discord Achievement Award | Appending image <span class="math-inline">\{filename\} \(</span>{imageBlob.type}) to form data.`);
-        }
-        else {
-            console.log("El Hazzy Discord Achievement Award | No image blob fetched or available to send.");
-        }
-        // --- Send FormData ---
+        return;
+    }
+    // --- Extract relevant data ---
+    // Adjust these based on the actual structure of achievementData
+    const userName = user.name;
+    const achievementName = achievementData.name || "Unknown Achievement";
+    const achievementDescription = achievementData.description || "";
+    const achievementIconSource = achievementData.image || ""; // URL to the icon maybe?
+    // Add any other data you want to send
+    // ---
+    const jsonDataPayload = {
+        userName: userName,
+        achievementName: achievementName,
+        achievementDescription: achievementDescription,
+        // We will send the icon source URL/path for reference if needed,
+        // but the actual file data will be separate.
+        iconSource: achievementIconSource,
+        discordUserId: discordUserId,
+        timestamp: new Date().toISOString(),
+    };
+    console.log(`El Hazzy Discord Achievement Award | Preparing notification for ${userName} - ${achievementName}`);
+    // --- Prepare FormData ---
+    const formData = new FormData();
+    formData.append('jsonData', JSON.stringify(jsonDataPayload)); // Send metadata as JSON string
+    // --- Handle Image ---
+    let imageBlob = null;
+    let filename = 'achievement-icon'; // Default filename
+    if (achievementIconSource) {
         try {
-            const response = yield fetch(backendUrl, {
-                method: 'POST',
-                headers: {
-                    // 'Content-Type' is set automatically by browser when body is FormData
-                    'Authorization': `Bearer ${secret}`
-                },
-                body: formData // Send the FormData object
-            });
-            if (!response.ok) {
-                // Log error if backend responded unfavorably
-                const errorBody = yield response.text();
-                console.error(`El Hazzy Discord Achievement Award  | Error sending notification: ${response.status} ${response.statusText}`, errorBody);
-                ui.notifications.error(`Failed to send Discord achievement notification (${response.status}). Check console (F12).`);
+            // Attempt to fetch the icon source (works for URLs, might work for relative paths in some setups)
+            const imageResponse = await fetch(achievementIconSource);
+            if (imageResponse.ok) {
+                imageBlob = await imageResponse.blob();
+                // Try to get a filename from the URL
+                try {
+                    const urlParts = new URL(achievementIconSource);
+                    const pathParts = urlParts.pathname.split('/');
+                    filename = pathParts[pathParts.length - 1] || filename;
+                }
+                catch (e) {
+                    console.error('');
+                }
             }
             else {
-                console.log("El Hazzy Discord Achievement Award  | Notification sent successfully.");
-                // Optional: ui.notifications.info("Discord achievement notification sent.");
+                console.warn(`El Hazzy Discord Achievement Award | Could not fetch image source: ${achievementIconSource} - Status: ${imageResponse.status}`);
             }
         }
         catch (error) {
-            // Log error if fetch itself failed (network issue, etc.)
-            console.error("El Hazzy Discord Achievement Award  | Failed to send notification request:", error);
-            ui.notifications.error("Failed to send Discord achievement notification request. Check console (F12).");
+            console.error(`El Hazzy Discord Achievement Award | Error fetching image source ${achievementIconSource}:`, error);
+            // Handle cases where fetch fails (e.g., local paths not fetchable directly by browser fetch)
+            // If achievementIconSource is a guaranteed local path accessible via server-side Node API
+            // in Foundry (less common for client-side hooks), you'd need a different approach here,
+            // possibly involving game.socket or server-side fetch if running in Node context.
+            // For now, we assume fetch might work or we skip the image.
         }
-    });
+    }
+    // Append image blob if successfully fetched
+    if (imageBlob) {
+        // Ensure filename has an extension based on mime type if possible
+        const extension = imageBlob.type.split('/')[1] || 'png'; // Default to png if type unknown
+        if (!filename.includes('.')) {
+            filename = `${filename}.${extension}`;
+        }
+        formData.append('achievementImageFile', imageBlob, filename); // The field name 'achievementImageFile' must match backend
+        console.log(`El Hazzy Discord Achievement Award | Appending image <span class="math-inline">\{filename\} \(</span>{imageBlob.type}) to form data.`);
+    }
+    else {
+        console.log("El Hazzy Discord Achievement Award | No image blob fetched or available to send.");
+    }
+    // --- Send FormData ---
+    try {
+        const response = await fetch(backendUrl, {
+            method: 'POST',
+            headers: {
+                // 'Content-Type' is set automatically by browser when body is FormData
+                'Authorization': `Bearer ${secret}`
+            },
+            body: formData // Send the FormData object
+        });
+        if (!response.ok) {
+            // Log error if backend responded unfavorably
+            const errorBody = await response.text();
+            console.error(`El Hazzy Discord Achievement Award  | Error sending notification: ${response.status} ${response.statusText}`, errorBody);
+            ui.notifications.error(`Failed to send Discord achievement notification (${response.status}). Check console (F12).`);
+        }
+        else {
+            console.log("El Hazzy Discord Achievement Award  | Notification sent successfully.");
+            // Optional: ui.notifications.info("Discord achievement notification sent.");
+        }
+    }
+    catch (error) {
+        // Log error if fetch itself failed (network issue, etc.)
+        console.error("El Hazzy Discord Achievement Award  | Failed to send notification request:", error);
+        ui.notifications.error("Failed to send Discord achievement notification request. Check console (F12).");
+    }
 }
 
-function addAchievementFromCommand(achievementID, PID) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const cleanPlayerID = game.users.contents.indexOf(game.users.get(PID)) - 1;
-        let dataPlayerID = cleanPlayerID; //++xathick
-        const player = game.users.get(PID);
-        const playerName = player.name;
-        const clientdataSYNC = game.settings.get('farchievements', 'clientdataSYNC'); //GET DATA
-        const dataArray = clientdataSYNC.split("||"); //DATA TO ARRAY
-        let dataArrayPlayer; //DATA TO ARRAY
-        let toSYNC;
-        let index = 0;
-        const achievement = yield getAchievementByID(achievementID);
-        yield sendAchievementNotification(playerName, achievement);
-        for (index; index < dataArray.length; index++) {
-            if (dataArray[index].split(":")[0] == PID) {
-                dataPlayerID = index;
-            }
-            game.settings.get('farchievements', 'clientdataSYNC').split("||");
+async function addAchievementFromCommand(achievementID, PID) {
+    const cleanPlayerID = game.users.contents.indexOf(game.users.get(PID)) - 1;
+    let dataPlayerID = cleanPlayerID; //++xathick
+    const player = game.users.get(PID);
+    const playerName = player.name;
+    const clientdataSYNC = game.settings.get('farchievements', 'clientdataSYNC'); //GET DATA
+    const dataArray = clientdataSYNC.split("||"); //DATA TO ARRAY
+    let dataArrayPlayer; //DATA TO ARRAY
+    let toSYNC;
+    let index = 0;
+    const achievement = await getAchievementByID(achievementID);
+    await sendAchievementNotification(playerName, achievement);
+    for (index; index < dataArray.length; index++) {
+        if (dataArray[index].split(":")[0] == PID) {
+            dataPlayerID = index;
         }
-        if (dataArray[dataPlayerID] == "" || dataArray[dataPlayerID] == 'NULL') { // IF NO DATA YET ADD ACHIEVEMENT
-            dataArrayPlayer = game.users.contents[dataPlayerID]._id + ":" + achievementID + ",";
-            dataArray[dataPlayerID] = dataArrayPlayer; //++xathick
-            toSYNC = dataArray.join("||");
-            yield game.settings.set('farchievements', 'clientdataSYNC', toSYNC);
-            if (document.getElementById('AchPlayerNav').className == "AchPlayerNav") //CHECK FOR EDITING WITHIN NORMAL WINDOW
-             {
-                yield game.settings.set('farchievements', 'loadSettingsForPlayer', PID);
-                $('#achsyncnormalmode').append('<i id="SyncAch2" onclick="SendSyncMessage()" class="fas fa-sync achievementsettings" title="Click to push changes right now"></i>');
-                window.loadAchievements();
-            }
-            else
-                window.loadAchievementsEditMode();
-            return;
-        }
-        if (dataArray[dataPlayerID].split(":")[1].includes(',' + "" + achievementID + ',')) { //DETECT EXISTING ACHIEVEMENT, SKIP REST
-            ui.notifications.notify("Farchievements | This player already has the achievement");
-            return;
-        }
-        else if (dataArray[dataPlayerID].split(":")[1].split(",")[0] == "" + achievementID) { //FIRST ACHIEVEMENT IN DATA? => CHECK AGAIN SPECIAL FORMATTING
-            ui.notifications.notify("Farchievements | This player already has the achievement");
-            return;
-        }
-        else if (dataArray[dataPlayerID].split(":")[1].split(",")[dataArray[dataPlayerID].split(":")[1].split(",")[0].length + 1] == "" + achievementID) { //LAST ACHIEVEMENT IN DATA? => SPECIAL FORMATTING
-            const firstDataArray = dataArray[dataPlayerID].split(":")[1].split(",");
-            firstDataArray.pop();
-            dataArray[dataPlayerID] = dataArray[dataPlayerID].split(":")[0] + ":" + firstDataArray;
-            toSYNC = dataArray.join("||");
-        }
-        else { //IF IT DOESN'T EXIST ON THIS PLAYER YET, ADD THE ACHIEVEMENT
-            dataArrayPlayer = dataArray[dataPlayerID].split(":")[0] + ":" + dataArray[dataPlayerID].split(":")[1] + achievementID + ",";
-            dataArray[dataPlayerID] = dataArrayPlayer;
-            toSYNC = dataArray.join("||");
-        }
-        if (document.getElementById('SyncAchUnsaved') != null) {
-            if (document.getElementById('SyncAchUnsaved').value == toSYNC) {
-                document.getElementById('SyncAchUnsaved').id = "SyncAch";
-                document.getElementById('SyncAchUnsaved').value = "";
-            }
-        }
-        if (document.getElementById('SyncAch') != null) {
-            document.getElementById('SyncAch').value = toSYNC;
-            document.getElementById('SyncAch').id = "SyncAchUnsaved";
-        }
-        yield game.settings.set('farchievements', 'clientdataSYNC', toSYNC);
-        SendSyncMessage();
-        //RELOAD ANY OPEN WINDOW
-        if (document.getElementById('AchPlayerNav') == null)
-            return;
+        game.settings.get('farchievements', 'clientdataSYNC').split("||");
+    }
+    if (dataArray[dataPlayerID] == "" || dataArray[dataPlayerID] == 'NULL') { // IF NO DATA YET ADD ACHIEVEMENT
+        dataArrayPlayer = game.users.contents[dataPlayerID]._id + ":" + achievementID + ",";
+        dataArray[dataPlayerID] = dataArrayPlayer; //++xathick
+        toSYNC = dataArray.join("||");
+        await game.settings.set('farchievements', 'clientdataSYNC', toSYNC);
         if (document.getElementById('AchPlayerNav').className == "AchPlayerNav") //CHECK FOR EDITING WITHIN NORMAL WINDOW
          {
-            yield game.settings.set('farchievements', 'loadSettingsForPlayer', PID);
+            await game.settings.set('farchievements', 'loadSettingsForPlayer', PID);
             $('#achsyncnormalmode').append('<i id="SyncAch2" onclick="SendSyncMessage()" class="fas fa-sync achievementsettings" title="Click to push changes right now"></i>');
             window.loadAchievements();
         }
         else
             window.loadAchievementsEditMode();
-    });
-}
-function loadAchievementList() {
-    return __awaiter(this, void 0, void 0, function* () {
-        let achievementData;
-        try {
-            achievementData = JSON.parse(yield game.settings.get('farchievements', 'achievementdataNEW'));
-            if (!Array.isArray(achievementData))
-                throw new Error("Achievement data is not an array");
+        return;
+    }
+    if (dataArray[dataPlayerID].split(":")[1].includes(',' + "" + achievementID + ',')) { //DETECT EXISTING ACHIEVEMENT, SKIP REST
+        ui.notifications.notify("Farchievements | This player already has the achievement");
+        return;
+    }
+    else if (dataArray[dataPlayerID].split(":")[1].split(",")[0] == "" + achievementID) { //FIRST ACHIEVEMENT IN DATA? => CHECK AGAIN SPECIAL FORMATTING
+        ui.notifications.notify("Farchievements | This player already has the achievement");
+        return;
+    }
+    else if (dataArray[dataPlayerID].split(":")[1].split(",")[dataArray[dataPlayerID].split(":")[1].split(",")[0].length + 1] == "" + achievementID) { //LAST ACHIEVEMENT IN DATA? => SPECIAL FORMATTING
+        const firstDataArray = dataArray[dataPlayerID].split(":")[1].split(",");
+        firstDataArray.pop();
+        dataArray[dataPlayerID] = dataArray[dataPlayerID].split(":")[0] + ":" + firstDataArray;
+        toSYNC = dataArray.join("||");
+    }
+    else { //IF IT DOESN'T EXIST ON THIS PLAYER YET, ADD THE ACHIEVEMENT
+        dataArrayPlayer = dataArray[dataPlayerID].split(":")[0] + ":" + dataArray[dataPlayerID].split(":")[1] + achievementID + ",";
+        dataArray[dataPlayerID] = dataArrayPlayer;
+        toSYNC = dataArray.join("||");
+    }
+    if (document.getElementById('SyncAchUnsaved') != null) {
+        if (document.getElementById('SyncAchUnsaved').value == toSYNC) {
+            document.getElementById('SyncAchUnsaved').id = "SyncAch";
+            document.getElementById('SyncAchUnsaved').value = "";
         }
-        catch (e) {
-            console.error("Farchievements | Failed to load achievements data:", e);
-            return [];
-        }
-        return achievementData;
-    });
+    }
+    if (document.getElementById('SyncAch') != null) {
+        document.getElementById('SyncAch').value = toSYNC;
+        document.getElementById('SyncAch').id = "SyncAchUnsaved";
+    }
+    await game.settings.set('farchievements', 'clientdataSYNC', toSYNC);
+    SendSyncMessage();
+    //RELOAD ANY OPEN WINDOW
+    if (document.getElementById('AchPlayerNav') == null)
+        return;
+    if (document.getElementById('AchPlayerNav').className == "AchPlayerNav") //CHECK FOR EDITING WITHIN NORMAL WINDOW
+     {
+        await game.settings.set('farchievements', 'loadSettingsForPlayer', PID);
+        $('#achsyncnormalmode').append('<i id="SyncAch2" onclick="SendSyncMessage()" class="fas fa-sync achievementsettings" title="Click to push changes right now"></i>');
+        window.loadAchievements();
+    }
+    else
+        window.loadAchievementsEditMode();
 }
-function getAchievementByName(achievementName) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const achievements = yield loadAchievementList();
-        return achievements.find((achievement) => achievement.name === achievementName);
-    });
+async function loadAchievementList() {
+    let achievementData;
+    try {
+        achievementData = JSON.parse(await game.settings.get('farchievements', 'achievementdataNEW'));
+        if (!Array.isArray(achievementData))
+            throw new Error("Achievement data is not an array");
+    }
+    catch (e) {
+        console.error("Farchievements | Failed to load achievements data:", e);
+        return [];
+    }
+    return achievementData;
 }
-function getAchievementByID(achievementID) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const achievements = yield loadAchievementList();
-        return achievements.find((achievement) => achievement.id === achievementID);
-    });
+async function getAchievementByName(achievementName) {
+    const achievements = await loadAchievementList();
+    return achievements.find((achievement) => achievement.name === achievementName);
+}
+async function getAchievementByID(achievementID) {
+    const achievements = await loadAchievementList();
+    return achievements.find((achievement) => achievement.id === achievementID);
 }
 
 class Achievement {
@@ -441,102 +400,94 @@ class Farchievements {
             }
         }).render(true);
     }
-    static AddAchievement(AchievementName, PlayerName) {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (!game.user.isGM)
-                return;
-            console.log(AchievementName);
-            // const data = game.settings.get('farchievements', 'achievementdata').split(';;;');
-            let AchievementID;
-            for (let i = 0; i < game.settings.get('farchievements', 'achievementdata').split(';;;').length; i++) {
-                if (AchievementName == game.settings.get('farchievements', 'achievementdata').split(';;;')[i].split('////')[0].split(":::")[1]) {
-                    AchievementID = game.settings.get('farchievements', 'achievementdata').split(';;;')[i].split('////')[0].split(":::")[0] - 1;
-                }
+    static async AddAchievement(AchievementName, PlayerName) {
+        if (!game.user.isGM)
+            return;
+        console.log(AchievementName);
+        // const data = game.settings.get('farchievements', 'achievementdata').split(';;;');
+        let AchievementID;
+        for (let i = 0; i < game.settings.get('farchievements', 'achievementdata').split(';;;').length; i++) {
+            if (AchievementName == game.settings.get('farchievements', 'achievementdata').split(';;;')[i].split('////')[0].split(":::")[1]) {
+                AchievementID = game.settings.get('farchievements', 'achievementdata').split(';;;')[i].split('////')[0].split(":::")[0] - 1;
             }
-            const PlayerID = game.users.getName(PlayerName).id;
-            if (PlayerID == null) {
-                ui.notifications.warn("Farchievements | Is the player name right?");
-                return;
-            }
-            if (AchievementID == null) {
-                ui.notifications.warn("Farchievements | Is the achievement name right?");
-                return;
-            }
-            addAchievementFromCommand(AchievementID, PlayerID);
-        });
+        }
+        const PlayerID = game.users.getName(PlayerName).id;
+        if (PlayerID == null) {
+            ui.notifications.warn("Farchievements | Is the player name right?");
+            return;
+        }
+        if (AchievementID == null) {
+            ui.notifications.warn("Farchievements | Is the achievement name right?");
+            return;
+        }
+        addAchievementFromCommand(AchievementID, PlayerID);
     }
-    static RemoveAchievement(AchievementName, PlayerName) {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (!game.user.isGM)
-                return;
-            const achievementList = JSON.parse(game.settings.get('farchievements', 'achievementdataNEW')); // Get the achievement list
-            const AchievementToRemove = achievementList.find((ach) => ach.name === AchievementName); // Find the specific achievement
-            const PlayerID = game.users.getName(PlayerName).id; // Get the player ID
-            if (PlayerID == null) {
-                ui.notifications.warn("Farchievements | Is the player name correct?");
-                return;
-            }
-            if (AchievementToRemove == null) {
-                ui.notifications.warn("Farchievements | Is the achievement name correct?");
-                return;
-            }
-            // Call the removePlayer method to remove the player from the achievement
-            AchievementToRemove.removePlayer(PlayerID);
-            // Save the updated achievement list back to the settings
-            game.settings.set('farchievements', 'achievementdataNEW', JSON.stringify(achievementList));
-            ui.notifications.notify(`Achievement "${AchievementName}" removed from player "${PlayerName}".`);
-        });
+    static async RemoveAchievement(AchievementName, PlayerName) {
+        if (!game.user.isGM)
+            return;
+        const achievementList = JSON.parse(game.settings.get('farchievements', 'achievementdataNEW')); // Get the achievement list
+        const AchievementToRemove = achievementList.find((ach) => ach.name === AchievementName); // Find the specific achievement
+        const PlayerID = game.users.getName(PlayerName).id; // Get the player ID
+        if (PlayerID == null) {
+            ui.notifications.warn("Farchievements | Is the player name correct?");
+            return;
+        }
+        if (AchievementToRemove == null) {
+            ui.notifications.warn("Farchievements | Is the achievement name correct?");
+            return;
+        }
+        // Call the removePlayer method to remove the player from the achievement
+        AchievementToRemove.removePlayer(PlayerID);
+        // Save the updated achievement list back to the settings
+        game.settings.set('farchievements', 'achievementdataNEW', JSON.stringify(achievementList));
+        ui.notifications.notify(`Achievement "${AchievementName}" removed from player "${PlayerName}".`);
     }
-    static MigrateAchievements() {
-        return __awaiter(this, void 0, void 0, function* () {
-            yield ui.notifications.notify("Farchievements | Beginning migration of old data...");
-            //console.log(game.settings.get('farchievements', 'achievementdataNEW'));
-            yield game.settings.set('farchievements', 'currentPage', 1);
-            const oldData = game.settings.get('farchievements', 'achievementdata');
-            const oldDataArr = oldData.split(";;;");
-            const oldClientData = game.settings.get('farchievements', 'clientdataSYNC');
-            const oldClientDataArr = oldClientData.split("||");
-            // const newData = "";
-            const AchievementList = [];
-            //console.log(oldDataArr.length);
-            for (let i = 0; i < oldDataArr.length - 1; i++) { //FOR EVERY OLD ACHIEVEMENT
-                //console.log(oldDataArr[i]);
-                //constructor: name, description, image, players
-                const playerslist = [];
-                if (oldClientData != "") {
-                    for (let j = 0; j < oldClientDataArr.length - 1; j++) { //FOR EVERY CLIENT
-                        if (oldClientDataArr[j] == "")
-                            continue;
-                        if (oldClientDataArr[j].split(":")[1] == "")
-                            continue;
-                        const clientAchArray = oldClientDataArr[j].split(":")[1].split(",");
-                        for (let k = 0; k < clientAchArray.length - 1; k++) { //FOR EVERY ENTRY IN THE CLIENT ACHIEVEMENTS LIST
-                            if (clientAchArray[k] == i) {
-                                playerslist.push(oldClientDataArr[j].split(":")[0]);
-                            }
+    static async MigrateAchievements() {
+        await ui.notifications.notify("Farchievements | Beginning migration of old data...");
+        //console.log(game.settings.get('farchievements', 'achievementdataNEW'));
+        await game.settings.set('farchievements', 'currentPage', 1);
+        const oldData = game.settings.get('farchievements', 'achievementdata');
+        const oldDataArr = oldData.split(";;;");
+        const oldClientData = game.settings.get('farchievements', 'clientdataSYNC');
+        const oldClientDataArr = oldClientData.split("||");
+        // const newData = "";
+        const AchievementList = [];
+        //console.log(oldDataArr.length);
+        for (let i = 0; i < oldDataArr.length - 1; i++) { //FOR EVERY OLD ACHIEVEMENT
+            //console.log(oldDataArr[i]);
+            //constructor: name, description, image, players
+            const playerslist = [];
+            if (oldClientData != "") {
+                for (let j = 0; j < oldClientDataArr.length - 1; j++) { //FOR EVERY CLIENT
+                    if (oldClientDataArr[j] == "")
+                        continue;
+                    if (oldClientDataArr[j].split(":")[1] == "")
+                        continue;
+                    const clientAchArray = oldClientDataArr[j].split(":")[1].split(",");
+                    for (let k = 0; k < clientAchArray.length - 1; k++) { //FOR EVERY ENTRY IN THE CLIENT ACHIEVEMENTS LIST
+                        if (clientAchArray[k] == i) {
+                            playerslist.push(oldClientDataArr[j].split(":")[0]);
                         }
                     }
                 }
-                const newAch = new Achievement(oldDataArr[i].split(":::")[1].split("////")[0], oldDataArr[i].split("////")[2], oldDataArr[i].split("////")[1], playerslist);
-                if (AchievementList.find(ach => ach.name == newAch.name)) {
-                    const number = AchievementList.filter(ach => ach.name.includes(newAch.name)).length;
-                    newAch.name += "(" + number + ")";
-                }
-                //console.log(newAch);
-                AchievementList.push(newAch);
             }
-            //console.log(game.settings.get('farchievements', 'achievementdataNEW'));
-            const data = JSON.stringify(AchievementList);
-            //console.log(data);
-            //let TestData = JSON.parse(data);
-            game.settings.set('farchievements', 'achievementdataNEW', data);
-            yield ui.notifications.notify("Farchievements | Migration Finished");
-        });
+            const newAch = new Achievement(oldDataArr[i].split(":::")[1].split("////")[0], oldDataArr[i].split("////")[2], oldDataArr[i].split("////")[1], playerslist);
+            if (AchievementList.find(ach => ach.name == newAch.name)) {
+                const number = AchievementList.filter(ach => ach.name.includes(newAch.name)).length;
+                newAch.name += "(" + number + ")";
+            }
+            //console.log(newAch);
+            AchievementList.push(newAch);
+        }
+        //console.log(game.settings.get('farchievements', 'achievementdataNEW'));
+        const data = JSON.stringify(AchievementList);
+        //console.log(data);
+        //let TestData = JSON.parse(data);
+        game.settings.set('farchievements', 'achievementdataNEW', data);
+        await ui.notifications.notify("Farchievements | Migration Finished");
     }
-    static debugAchievements() {
-        return __awaiter(this, void 0, void 0, function* () {
-            return JSON.parse(game.settings.get('farchievements', 'achievementdataNEW'));
-        });
+    static async debugAchievements() {
+        return JSON.parse(game.settings.get('farchievements', 'achievementdataNEW'));
     }
 }
 
@@ -1007,78 +958,74 @@ class Achievements {
     }
 }
 
-Hooks.on('renderSceneNavigation', function () {
-    return __awaiter(this, void 0, void 0, function* () {
-        Achievements.addChatControl();
-        //console.log("AchievementsScreen GM true");
-        const style = yield game.settings.get("farchievements", "bannerBackground");
-        let banner = "";
-        if (style != "")
-            banner = "background: url(" + style + ")!important;";
-        const bannerstyle = 'top: -200px; ' + banner + ' background-position: center!important; display: flex;  background-size: 100% 100% !important;';
-        const el = `<div id="Achievementbar" style="display: none;" class="Achievementbar"><div id="FoundryAchievements" class="FoundryAchievementsBanner" style="` + bannerstyle + `"><img id="AchievementIMG" class="AchievementIMG" src="modules/farchievements/standardIcon.PNG"></img><p class="AchievementText"><label class="AchievementTextLabel">${game.i18n.localize('Farchievements.NewAchievement')}</label> (${game.i18n.localize('Farchievements.Achievement')}) </p><i class="Shiny"></i></div></div>`;
-        document.getElementById("notifications").innerHTML = el;
-    });
+Hooks.on('renderSceneNavigation', async function () {
+    Achievements.addChatControl();
+    //console.log("AchievementsScreen GM true");
+    const style = await game.settings.get("farchievements", "bannerBackground");
+    let banner = "";
+    if (style != "")
+        banner = "background: url(" + style + ")!important;";
+    const bannerstyle = 'top: -200px; ' + banner + ' background-position: center!important; display: flex;  background-size: 100% 100% !important;';
+    const el = `<div id="Achievementbar" style="display: none;" class="Achievementbar"><div id="FoundryAchievements" class="FoundryAchievementsBanner" style="` + bannerstyle + `"><img id="AchievementIMG" class="AchievementIMG" src="modules/farchievements/standardIcon.PNG"></img><p class="AchievementText"><label class="AchievementTextLabel">${game.i18n.localize('Farchievements.NewAchievement')}</label> (${game.i18n.localize('Farchievements.Achievement')}) </p><i class="Shiny"></i></div></div>`;
+    document.getElementById("notifications").innerHTML = el;
 });
 
 class AchievementSync {
     static sleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
-    static PlayAnimation(achievementsGainedList) {
-        return __awaiter(this, void 0, void 0, function* () {
-            var _a;
-            yield game.settings.set('farchievements', 'clientdata', game.settings.get('farchievements', 'clientdata') + achievementsGainedList);
-            const AchievementList = JSON.parse(game.settings.get('farchievements', 'achievementdataNEW'));
-            const achievementsToGain = achievementsGainedList.split("||||%%%||||");
-            const showPopup = game.settings.get('farchievements', 'EnableAchievementPopup');
-            const disableBanner = game.settings.get('farchievements', 'DisableAchievementBanner');
-            for (let i = 0; i < achievementsToGain.length; i++) {
-                yield AchievementSync.sleep(100);
-                const AchievementToGain = AchievementList.find((ach) => ach.name == achievementsToGain[i]);
-                if (AchievementToGain == null)
-                    return;
-                displayMyNewAchievementInChat(AchievementToGain.name);
-                // Show Popup if enabled
-                if (showPopup) {
-                    Farchievements.DisplayAchievementPopup(AchievementToGain.name);
-                }
-                // Skip banner if disabled
-                if (disableBanner)
-                    continue;
-                // Banner animation logic
-                const name = AchievementToGain.name;
-                const icon = AchievementToGain.image || game.settings.get('farchievements', 'standarticon');
-                const anim = game.settings.get('farchievements', 'bannerAnimation');
-                const dur = (anim == "fadeOut") ? 5 : 13;
-                document.getElementsByClassName("AchievementText")[0].innerHTML = `<label class="AchievementTextLabel">${game.settings.get("farchievements", "achpretext")}</label>` + name;
-                document.getElementById("AchievementIMG").src = icon;
-                if (AchievementToGain.glowing)
-                    document.getElementById("FoundryAchievements").classList.add('glowingAch');
-                else
-                    document.getElementById("FoundryAchievements").classList.remove('glowingAch');
-                document.getElementById("Achievementbar").style.setProperty("animation-name", anim);
-                document.getElementById("Achievementbar").style.setProperty("animation-duration", `${dur}s`);
-                const sound = (anim == "fadeOut") ? 'achievementSound' : 'achievementStinger';
-                const volume = (anim == "fadeOut") ? 'achievementSoundVolume' : 'achievementStingerVolume';
-                yield AudioHelper.play({ src: game.settings.get('farchievements', sound), volume: game.settings.get('farchievements', volume), autoplay: true, loop: false }, false);
-                if (anim == "slidein")
-                    yield AchievementSync.sleep(1800);
-                document.getElementById("Achievementbar").style.setProperty("display", "flex");
-                if (((_a = game.modules.get('confetti')) === null || _a === void 0 ? void 0 : _a.active) === true && game.settings.get('farchievements', 'EnableConfettiSupport')) {
-                    for (let c = 0; c < 3; c++) {
-                        yield AchievementSync.sleep(500);
-                        const strength = window.confetti.confettiStrength.high;
-                        const shootConfettiProps = window.confetti.getShootConfettiProps(strength);
-                        window.confetti.handleShootConfetti(shootConfettiProps);
-                    }
-                }
-                else {
-                    yield AchievementSync.sleep(dur * 1000);
-                }
-                document.getElementById("Achievementbar").style.setProperty("display", "none");
+    static async PlayAnimation(achievementsGainedList) {
+        var _a;
+        await game.settings.set('farchievements', 'clientdata', game.settings.get('farchievements', 'clientdata') + achievementsGainedList);
+        const AchievementList = JSON.parse(game.settings.get('farchievements', 'achievementdataNEW'));
+        const achievementsToGain = achievementsGainedList.split("||||%%%||||");
+        const showPopup = game.settings.get('farchievements', 'EnableAchievementPopup');
+        const disableBanner = game.settings.get('farchievements', 'DisableAchievementBanner');
+        for (let i = 0; i < achievementsToGain.length; i++) {
+            await AchievementSync.sleep(100);
+            const AchievementToGain = AchievementList.find((ach) => ach.name == achievementsToGain[i]);
+            if (AchievementToGain == null)
+                return;
+            displayMyNewAchievementInChat(AchievementToGain.name);
+            // Show Popup if enabled
+            if (showPopup) {
+                Farchievements.DisplayAchievementPopup(AchievementToGain.name);
             }
-        });
+            // Skip banner if disabled
+            if (disableBanner)
+                continue;
+            // Banner animation logic
+            const name = AchievementToGain.name;
+            const icon = AchievementToGain.image || game.settings.get('farchievements', 'standarticon');
+            const anim = game.settings.get('farchievements', 'bannerAnimation');
+            const dur = (anim == "fadeOut") ? 5 : 13;
+            document.getElementsByClassName("AchievementText")[0].innerHTML = `<label class="AchievementTextLabel">${game.settings.get("farchievements", "achpretext")}</label>` + name;
+            document.getElementById("AchievementIMG").src = icon;
+            if (AchievementToGain.glowing)
+                document.getElementById("FoundryAchievements").classList.add('glowingAch');
+            else
+                document.getElementById("FoundryAchievements").classList.remove('glowingAch');
+            document.getElementById("Achievementbar").style.setProperty("animation-name", anim);
+            document.getElementById("Achievementbar").style.setProperty("animation-duration", `${dur}s`);
+            const sound = (anim == "fadeOut") ? 'achievementSound' : 'achievementStinger';
+            const volume = (anim == "fadeOut") ? 'achievementSoundVolume' : 'achievementStingerVolume';
+            await AudioHelper.play({ src: game.settings.get('farchievements', sound), volume: game.settings.get('farchievements', volume), autoplay: true, loop: false }, false);
+            if (anim == "slidein")
+                await AchievementSync.sleep(1800);
+            document.getElementById("Achievementbar").style.setProperty("display", "flex");
+            if (((_a = game.modules.get('confetti')) === null || _a === void 0 ? void 0 : _a.active) === true && game.settings.get('farchievements', 'EnableConfettiSupport')) {
+                for (let c = 0; c < 3; c++) {
+                    await AchievementSync.sleep(500);
+                    const strength = window.confetti.confettiStrength.high;
+                    const shootConfettiProps = window.confetti.getShootConfettiProps(strength);
+                    window.confetti.handleShootConfetti(shootConfettiProps);
+                }
+            }
+            else {
+                await AchievementSync.sleep(dur * 1000);
+            }
+            document.getElementById("Achievementbar").style.setProperty("display", "none");
+        }
     }
     static SyncAchievements(skip = null, start = false) {
         var _a, _b;
@@ -1270,56 +1217,54 @@ Hooks.on('createChatMessage', (chatMessage) => {
         }
     }
 });
-Hooks.on("createChatMessage", function (message) {
-    return __awaiter(this, void 0, void 0, function* () {
-        if (message.content.includes('Achievements Synced'))
-            AchievementSync.SyncAchievements();
-        if (message.content.includes("Farchievements-SyncRequest")) {
-            if (!game.user.isGM)
-                return;
-            const NAME = message.content.split("|")[1];
-            const ACHIEVMENTNAME = message.content.split("|")[2];
-            //==========================================
-            const achData = game.settings.get('farchievements', 'achievementdata').split(';;;');
-            const dataArray = game.settings.get('farchievements', 'clientdataSYNC').split("||");
-            let Player, dataArrayPlayer, toSYNC;
-            if (NAME != "")
-                Player = game.users.getName(NAME);
-            else {
-                Player = game.user;
-            }
-            if (Player == null) {
-                ui.notifications.error(game.i18n.localize('Farchievements.Notification.Prefix') + game.i18n.localize('Farchievements.Notification.UserDoesNotExist'));
-                return;
-            }
-            const PID = dataArray.indexOf(dataArray.filter((entry) => entry.includes(Player.id))[0]);
-            const achievementID = achData.filter((entry) => entry.split("////")[0].includes(ACHIEVMENTNAME))[0][0];
-            if (dataArray[PID] == "" || dataArray[PID] == null) { // IF NO DATA YET
-                dataArrayPlayer = game.users._source[PID].id + ":" + achievementID + ",";
-                dataArray[PID] = dataArrayPlayer;
-                toSYNC = dataArray.join("||");
-                console.log(toSYNC);
-                //await game.settings.set('farchievements', 'clientdataSYNC', toSYNC);
-                console.log("Setting Achievement: " + ACHIEVMENTNAME + "(ID:" + achievementID + ")" + " for user: " + NAME);
-                return;
-            }
-            else {
-                dataArrayPlayer = dataArray[PID].split(":")[0] + ":" + dataArray[PID].split(":")[1] + achievementID + ",";
-                dataArray[PID] = dataArrayPlayer;
-                toSYNC = dataArray.join("||");
-                console.log(toSYNC);
-            }
-            yield game.settings.set('farchievements', 'clientdataSYNC', toSYNC);
-            ChatMessage.create({
-                user: game.user.id,
-                content: 'Achievements Synced',
-                blind: false,
-                whisper: game.users.entities.filter((u) => u.isGM).map((u) => u.id)
-            });
-            ui.notifications.notify('Achievements Synced');
-            AchievementSync.SyncAchievements();
+Hooks.on("createChatMessage", async function (message) {
+    if (message.content.includes('Achievements Synced'))
+        AchievementSync.SyncAchievements();
+    if (message.content.includes("Farchievements-SyncRequest")) {
+        if (!game.user.isGM)
+            return;
+        const NAME = message.content.split("|")[1];
+        const ACHIEVMENTNAME = message.content.split("|")[2];
+        //==========================================
+        const achData = game.settings.get('farchievements', 'achievementdata').split(';;;');
+        const dataArray = game.settings.get('farchievements', 'clientdataSYNC').split("||");
+        let Player, dataArrayPlayer, toSYNC;
+        if (NAME != "")
+            Player = game.users.getName(NAME);
+        else {
+            Player = game.user;
         }
-    });
+        if (Player == null) {
+            ui.notifications.error(game.i18n.localize('Farchievements.Notification.Prefix') + game.i18n.localize('Farchievements.Notification.UserDoesNotExist'));
+            return;
+        }
+        const PID = dataArray.indexOf(dataArray.filter((entry) => entry.includes(Player.id))[0]);
+        const achievementID = achData.filter((entry) => entry.split("////")[0].includes(ACHIEVMENTNAME))[0][0];
+        if (dataArray[PID] == "" || dataArray[PID] == null) { // IF NO DATA YET
+            dataArrayPlayer = game.users._source[PID].id + ":" + achievementID + ",";
+            dataArray[PID] = dataArrayPlayer;
+            toSYNC = dataArray.join("||");
+            console.log(toSYNC);
+            //await game.settings.set('farchievements', 'clientdataSYNC', toSYNC);
+            console.log("Setting Achievement: " + ACHIEVMENTNAME + "(ID:" + achievementID + ")" + " for user: " + NAME);
+            return;
+        }
+        else {
+            dataArrayPlayer = dataArray[PID].split(":")[0] + ":" + dataArray[PID].split(":")[1] + achievementID + ",";
+            dataArray[PID] = dataArrayPlayer;
+            toSYNC = dataArray.join("||");
+            console.log(toSYNC);
+        }
+        await game.settings.set('farchievements', 'clientdataSYNC', toSYNC);
+        ChatMessage.create({
+            user: game.user.id,
+            content: 'Achievements Synced',
+            blind: false,
+            whisper: game.users.entities.filter((u) => u.isGM).map((u) => u.id)
+        });
+        ui.notifications.notify('Achievements Synced');
+        AchievementSync.SyncAchievements();
+    }
 });
 
 Hooks.on('renderSettings', function () {
@@ -1373,16 +1318,82 @@ Hooks.on("renderChatMessage", (chatMessage, html, data) => {
     }
 });
 
-Hooks.on('ready', function () {
-    return __awaiter(this, void 0, void 0, function* () {
-        //START MIGRATION
-        if (game.user.isGM && game.settings.get('farchievements', 'achievementdataNEW') == "") {
-            Farchievements.MigrateAchievements();
+Hooks.on('renderUserConfig', (app, html) => {
+    var _a, _b;
+    // Only add the field for GMs
+    if (!((_a = game.user) === null || _a === void 0 ? void 0 : _a.isGM)) {
+        return;
+    }
+    // Get the user being configured by this sheet
+    const targetUser = app.document;
+    if (!targetUser)
+        return;
+    const currentDiscordId = (_b = targetUser.getFlag("farchievements", 'discordId')) !== null && _b !== void 0 ? _b : '';
+    const parser = new DOMParser();
+    const inputHtml = `
+    <fieldset>
+        <legend>El Hazzy Discrod notifcations!</legend>
+        <div class="form-group">
+            <label>Discord User ID</label>
+            <div class="form-fields">
+                <input id="elhazzy-ds-achievement-award-discordid" type="text" value="${currentDiscordId}" placeholder="Enter 17-20 digit Discord User ID" pattern="^\\d{17,20}$" title="Discord User ID must be 17-20 digits."/>
+            </div>
+            <p class="hint">Needed for Discord achievement notification mentions. User must enable Developer Mode in Discord, right-click their name, and Copy User ID.</p>
+        </div>
+    </fieldset>
+    `;
+    const element = parser.parseFromString(inputHtml, 'text/html');
+    const elementHTML = element.body.firstElementChild;
+    // Find a good place to inject the field, e.g., before the Player Color input
+    const formFooter = html.getElementsByClassName('form-footer');
+    formFooter[0].before(elementHTML);
+    // Adjust window height to make sure the new field fits
+    app.setPosition({ height: 'auto' });
+    html.addEventListener('submit', async () => {
+        // No preventDefault needed generally
+        var _a, _b;
+        if (!((_a = game.user) === null || _a === void 0 ? void 0 : _a.isGM))
+            return;
+        // Find our input field within the form
+        const discordIdInput = html.querySelector('#elhazzy-ds-achievement-award-discordid');
+        if (discordIdInput) {
+            const discordIdValue = ((_b = discordIdInput.value) === null || _b === void 0 ? void 0 : _b.trim()) || "";
+            const userIdRegex = /^\d{17,20}$/;
+            // Only save if value changed and is valid (or empty)
+            if (discordIdValue === "" || userIdRegex.test(discordIdValue)) {
+                console.log(`El Hazzy Discord Achievement Award | Intercepting submit for ${targetUser.name}. Setting discordId flag to: '${discordIdValue}'`);
+                try {
+                    // Manually set the flag
+                    await targetUser.setFlag("farchievements", 'discordId', discordIdValue);
+                }
+                catch (err) {
+                    console.error("El Hazzy Discord Achievement Award | Error setting flag during form submit:", err);
+                    ui.notifications.error(`Failed to save Discord ID flag for ${targetUser.name}.`);
+                }
+            }
+            else if (discordIdValue !== "") { // No need to check currentFlagValue here
+                // Warn if changed to an invalid value
+                console.warn(`El Hazzy Discord Achievement Award | Invalid Discord ID format submitted for ${targetUser.name}: '${discordIdValue}'. Flag not saved.`);
+                ui.notifications.warn(`Invalid Discord ID format for ${targetUser.name}. It was not saved. Please use the 17-20 digit ID.`);
+                // Consider preventing submit if invalid?
+                // event.preventDefault(); // Uncomment ONLY if blocking save is desired for invalid input
+            }
         }
-        //sync achievements
-        if (!game.user.isGM)
-            AchievementSync.SyncAchievements(game.settings.get('farchievements', 'showAchOnStartup'), true);
+        else {
+            console.warn("El Hazzy Discord Achievement Award | Could not find Discord ID input field on form submit listener.");
+        }
+        // Allow default submission to proceed
     });
+});
+
+Hooks.on('ready', async function () {
+    //START MIGRATION
+    if (game.user.isGM && game.settings.get('farchievements', 'achievementdataNEW') == "") {
+        Farchievements.MigrateAchievements();
+    }
+    //sync achievements
+    if (!game.user.isGM)
+        AchievementSync.SyncAchievements(game.settings.get('farchievements', 'showAchOnStartup'), true);
 });
 Hooks.once('ready', () => {
     if (game.version < 13)
@@ -1435,24 +1446,20 @@ Hooks.once('ready', () => {
     refreshData(); // Starts periodic execution for context menu updates
 });
 
-window.farchievements_DEBUG_Reset_EVERYTHING = function resetSettings() {
-    return __awaiter(this, void 0, void 0, function* () {
-        if (!game.user.isGM)
-            return;
-        yield game.settings.set('farchievements', 'achievementdata', "1:::Mounted////systems/dnd5e/icons/items/inventory/horseshoe.jpg////Acquire a mount.;;;2:::Translator////systems/dnd5e/icons/items/inventory/note-scroll.jpg////Act as the party translator.;;;3:::Argumenter////systems/dnd5e/icons/items/inventory/monster-beak.jpg////Argue with the DM over a dice roll.;;;4:::Bitte, Bitte Papa////systems/dnd5e/icons/items/inventory/runestone-dwarven.jpg////Ask a deity for a favor.;;;5:::Hardmode////icons/skills/wounds/injury-eyes-blood-red-pink.webp////Be deaf and blind simultaneously.;;;6:::You have no power here////systems/dnd5e/icons/skills/blood_12.jpg////Be ignored by the DM when citing rules.;;;7:::Special////systems/dnd5e/icons/skills/green_27.jpg////Be the only person to roll 20 at a session;;;8:::Actor////systems/dnd5e/icons/skills/emerald_07.jpg////Beat a performance check while in disguise;;;9:::Deiety////systems/dnd5e/icons/skills/yellow_13.jpg////Become deified.;;;10:::Brute////icons/magic/earth/barrier-stone-brown-green.webp////Burst through a wall.;;;11:::Ouch////https://assets.forge-vtt.com/5fa2d7054f8a4cf1b34c8a38/Icons/spellbook_page1/SpellBook08_13.png////Reach 0 HP twice in 1 encounter.;;;12:::Amazing Roleplayer////icons/skills/social/diplomacy-peace-alliance.webp////Roleplay your character exceptionally.;;;13:::(Un)advantage////icons/magic/control/voodoo-doll-pain-damage-purple.webp////Roll 2 1’s on an advantaged roll.;;;14:::Lucky////icons/magic/light/projectile-flare-blue.webp////Roll 2 20’s in a row.;;;15:::Never tell me the odds////icons/magic/control/buff-luck-fortune-clover-green.webp////Roll 2 20’s on a disadvantaged roll.;;;16:::Strongest in the Land////icons/skills/melee/unarmed-punch-fist.webp////Have a strength score over 20.;;;17:::Fastest in the Land////icons/magic/lightning/bolt-strike-cloud-gray.webp////Have a dexterity score over 20.;;;18:::Toughest in the Land////icons/magic/earth/strike-fist-stone-light.webp////Have a constitution score over 20.;;;19:::Smartest in the Land////icons/magic/control/silhouette-hold-beam-blue.webp////Have a intelligence score over 20.;;;20:::Wisest in the Land////icons/magic/nature/tree-elm-roots-brown.webp////Have a wisdom score over 20.;;;21:::The most Charming in the Land////icons/magic/unholy/strike-body-explode-disintegrate.webp////Have a charisma score over 20.;;;22:::I've nothing left to lose...////icons/magic/death/undead-skeleton-deformed-red.webp////...so the only path to choose is twisted. Be the sole survivor of a TPK;;;23:::Necromancer////icons/commodities/bones/bones-dragon-grey.webp////Raise the dead.;;;24:::Lorax////https://c.tenor.com/BzpCcZbxOAIAAAAd/lorax-the-lorax.gif////Speak for the trees;;;");
-        yield game.settings.set('farchievements', 'achievementdataNEW', "");
-        yield game.settings.set('farchievements', 'clientdataSYNC', "");
-        yield game.settings.set('farchievements', 'clientdata', "");
-    });
+window.farchievements_DEBUG_Reset_EVERYTHING = async function resetSettings() {
+    if (!game.user.isGM)
+        return;
+    await game.settings.set('farchievements', 'achievementdata', "1:::Mounted////systems/dnd5e/icons/items/inventory/horseshoe.jpg////Acquire a mount.;;;2:::Translator////systems/dnd5e/icons/items/inventory/note-scroll.jpg////Act as the party translator.;;;3:::Argumenter////systems/dnd5e/icons/items/inventory/monster-beak.jpg////Argue with the DM over a dice roll.;;;4:::Bitte, Bitte Papa////systems/dnd5e/icons/items/inventory/runestone-dwarven.jpg////Ask a deity for a favor.;;;5:::Hardmode////icons/skills/wounds/injury-eyes-blood-red-pink.webp////Be deaf and blind simultaneously.;;;6:::You have no power here////systems/dnd5e/icons/skills/blood_12.jpg////Be ignored by the DM when citing rules.;;;7:::Special////systems/dnd5e/icons/skills/green_27.jpg////Be the only person to roll 20 at a session;;;8:::Actor////systems/dnd5e/icons/skills/emerald_07.jpg////Beat a performance check while in disguise;;;9:::Deiety////systems/dnd5e/icons/skills/yellow_13.jpg////Become deified.;;;10:::Brute////icons/magic/earth/barrier-stone-brown-green.webp////Burst through a wall.;;;11:::Ouch////https://assets.forge-vtt.com/5fa2d7054f8a4cf1b34c8a38/Icons/spellbook_page1/SpellBook08_13.png////Reach 0 HP twice in 1 encounter.;;;12:::Amazing Roleplayer////icons/skills/social/diplomacy-peace-alliance.webp////Roleplay your character exceptionally.;;;13:::(Un)advantage////icons/magic/control/voodoo-doll-pain-damage-purple.webp////Roll 2 1’s on an advantaged roll.;;;14:::Lucky////icons/magic/light/projectile-flare-blue.webp////Roll 2 20’s in a row.;;;15:::Never tell me the odds////icons/magic/control/buff-luck-fortune-clover-green.webp////Roll 2 20’s on a disadvantaged roll.;;;16:::Strongest in the Land////icons/skills/melee/unarmed-punch-fist.webp////Have a strength score over 20.;;;17:::Fastest in the Land////icons/magic/lightning/bolt-strike-cloud-gray.webp////Have a dexterity score over 20.;;;18:::Toughest in the Land////icons/magic/earth/strike-fist-stone-light.webp////Have a constitution score over 20.;;;19:::Smartest in the Land////icons/magic/control/silhouette-hold-beam-blue.webp////Have a intelligence score over 20.;;;20:::Wisest in the Land////icons/magic/nature/tree-elm-roots-brown.webp////Have a wisdom score over 20.;;;21:::The most Charming in the Land////icons/magic/unholy/strike-body-explode-disintegrate.webp////Have a charisma score over 20.;;;22:::I've nothing left to lose...////icons/magic/death/undead-skeleton-deformed-red.webp////...so the only path to choose is twisted. Be the sole survivor of a TPK;;;23:::Necromancer////icons/commodities/bones/bones-dragon-grey.webp////Raise the dead.;;;24:::Lorax////https://c.tenor.com/BzpCcZbxOAIAAAAd/lorax-the-lorax.gif////Speak for the trees;;;");
+    await game.settings.set('farchievements', 'achievementdataNEW', "");
+    await game.settings.set('farchievements', 'clientdataSYNC', "");
+    await game.settings.set('farchievements', 'clientdata', "");
 };
-window.farchievements_DEBUG_Reset_PlayerAchievements = function resetPlayers() {
-    return __awaiter(this, void 0, void 0, function* () {
-        if (!game.user.isGM)
-            return;
-        yield game.settings.set('farchievements', 'clientdataSYNC', "");
-        yield game.settings.set('farchievements', 'clientdata', "");
-        location.reload();
-    });
+window.farchievements_DEBUG_Reset_PlayerAchievements = async function resetPlayers() {
+    if (!game.user.isGM)
+        return;
+    await game.settings.set('farchievements', 'clientdataSYNC', "");
+    await game.settings.set('farchievements', 'clientdata', "");
+    location.reload();
 };
 window.Farchievements = Farchievements;
 window.sendAchievementNotification = sendAchievementNotification;

@@ -8,6 +8,8 @@ declare global {
     const AudioHelper: AudioHelper;
     const Application: Application;
     const ChatMessage: ChatMessage;
+    type User = User;
+    type App = App;
     const renderTemplate: (path: string, data: unknown) => Promise<unknown>;
     const displayMyNewAchievementInChat: (name: string) => void;
     const debounce: (fn: () => void, number) => void;
